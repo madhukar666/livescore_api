@@ -5,7 +5,7 @@ from markupsafe import escape
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from datetime import datetime
-import pytz
+# import pytz
 
 # Replace the CORS URL with your's
 app = Flask(__name__)
@@ -35,7 +35,79 @@ headers = {
 
 @app.route('/')
 def hello():
-    return jsonify({'Code': 200, 'message': 'Python - Free Cricket Score API - JSON'})
+    session_object = requests.Session()
+    try:
+        r = session_object.get('https://www.cricbuzz.com/cricket-match/live-scores', headers=headers)
+        soup = bs(r.content, 'lxml')
+        
+        # Find all match divs
+        match_divs = soup.find_all("div", attrs={"class": "cb-mtch-lst cb-col cb-col-100 cb-tms-itm"})
+        live_matches = []
+        
+        for match in match_divs:
+            # Get match URL and extract ID
+            link = match.find("a")
+            if link:
+                full_url = link.get('href')
+                match_id = full_url.split('/')[2]  # Extract ID from URL
+                
+                # Get match title
+                title = match.find("h3", {"class": "cb-lv-scr-mtch-hdr"})
+                title = title.text.strip() if title else "No Title"
+                
+                # Get team names
+                team_divs = match.find_all("div", {"class": "cb-ovr-flo cb-hmscg-tm-nm"})
+                team_1 = team_divs[0].text.strip() if len(team_divs) > 0 else "Team 1"
+                team_2 = team_divs[1].text.strip() if len(team_divs) > 1 else "Team 2"
+                
+                # Get team scores
+                score_divs = match.find_all("div", {"class": "cb-ovr-flo"})
+                team_1_score = ""
+                team_2_score = ""
+                
+                for score_div in score_divs:
+                    score_text = score_div.text.strip()
+                    if score_text and any(c.isdigit() for c in score_text):
+                        if not team_1_score:
+                            team_1_score = score_text
+                        else:
+                            team_2_score = score_text
+                
+                # Get match status
+                status = match.find("div", {"class": "cb-text-live"})
+                if not status:
+                    status = match.find("div", {"class": "cb-text-complete"})
+                if not status:
+                    status = match.find("div", {"class": "cb-text-mom"})
+                    
+                match_status = status.text.strip() if status else "Status not available"
+                
+                live_matches.append({
+                    "match_id": match_id,
+                    "title": title,
+                    "team1": {
+                        "name": team_1,
+                        "score": team_1_score
+                    },
+                    "team2": {
+                        "name": team_2,
+                        "score": team_2_score
+                    },
+                    "status": match_status
+                })
+        
+        return jsonify({
+            'status': 'success',
+            'count': len(live_matches),
+            'matches': live_matches
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'matches': []
+        })
 
 
 @app.route('/score', methods=['GET'])
