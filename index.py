@@ -5,7 +5,7 @@ from markupsafe import escape
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from datetime import datetime
-# import pytz
+import pytz
 
 # Replace the CORS URL with your's
 app = Flask(__name__)
@@ -50,7 +50,7 @@ def hello():
             if link:
                 full_url = link.get('href')
                 match_id = full_url.split('/')[2]  # Extract ID from URL
-                
+                match_slug = full_url.split('/')[3]
                 # Get match title
                 title = match.find("h3", {"class": "cb-lv-scr-mtch-hdr"})
                 title = title.text.strip() if title else "No Title"
@@ -84,6 +84,7 @@ def hello():
                 
                 live_matches.append({
                     "match_id": match_id,
+                    "match_slug": match_slug,
                     "title": title,
                     "team1": {
                         "name": team_1,
@@ -113,11 +114,12 @@ def hello():
 @app.route('/score', methods=['GET'])
 def score():
     get_id = request.args.get('id')
+    get_slug = request.args.get('slug')
     id = escape(get_id)
     if id:
         session_object = requests.Session()
         r = session_object.get(
-            'https://www.cricbuzz.com/live-cricket-scores/' + id, headers=headers)
+            'https://www.cricbuzz.com/live-cricket-scores/' + id + f"/{get_slug}", headers=headers)
         soup = bs(r.content, 'lxml')
         try:
             update = soup.find_all(
